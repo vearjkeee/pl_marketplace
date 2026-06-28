@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+
+# виртуальные окружения
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Локальные секреты (НЕ КОММИТИТЬ)
+secrets.json
+local_config.json
+
+# Папка с пулами кодов (может содержать конфиденциальные коды маркировки)
+printer/labels/
+*.txt
+!docs/*.txt
+
+# Логи
+*.log

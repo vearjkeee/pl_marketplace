@@ -1,0 +1,68 @@
+{
+  "_comment": "Сервер печати GS1 DataMatrix для системы Парфюм Логистик. Читает задания из листа 'Задания_печати' Google Таблицы.",
+
+  "gas": {
+    "webapp_url": "ВСТАВЬТЕ_URL_ВАШЕГО_GAS_WEB_APP_СЮДА",
+    "poll_interval_sec": 3,
+    "request_timeout_sec": 15
+  },
+
+  "printer": {
+    "name": "ZZZDesignerZM400",
+    "dpi": 203,
+    "_dpi_options": "Поддерживаемые DPI Zebra ZM400: 203, 300, 600. Просто поменяйте число — все размеры в точках пересчитаются автоматически."
+  },
+
+  "label": {
+    "width_mm": 25.4,
+    "height_mm": 20.0,
+    "media_mode": "MNY",
+    "media_type": "MTD",
+    "code_page": "CI28"
+  },
+
+  "barcode": {
+    "margin_mm": 1.0,
+    "correction_x_mm": 0.0,
+    "correction_y_mm": 0.0,
+    "scale_factor": 1.0,
+    "_scale_hint": "Пропорциональное уменьшение. 0.85 = -15%, 0.7 = -30%.",
+    "max_size_mm": 0,
+    "_max_hint": "Жёсткий ограничение в ММ. 0 = авто."
+  },
+
+  "index_label": {
+    "x_mm": 18.5,
+    "y_mm": 1.0,
+    "font_height_mm": 2.0,
+    "font_width_mm": 1.4,
+    "reserved_strip_w_mm": 6.5,
+    "reserved_strip_h_mm": 3.5
+  },
+
+  "signal_label": {
+    "start_prefix": "CODE: ",
+    "total_prefix": "TOTAL: ",
+    "x_mm": 3.0,
+    "y_mm": 6.0,
+    "font_height_mm": 3.0,
+    "font_width_mm": 2.2
+  },
+
+  "copies": {
+    "single_code": 1,
+    "pool_each": 2,
+    "signal_label": 1,
+    "reprint_each": 2
+  },
+
+  "delays_sec": {
+    "between_pool_items": 0.3,
+    "after_signal_label": 0.5,
+    "after_job_complete": 1.0
+  },
+
+  "paths": {
+    "labels_folder": "./labels"
+  }
+}

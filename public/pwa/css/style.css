@@ -1,0 +1,936 @@
+/* ============================================================
+   Парфюм Логистик — стили приложения (улучшенная версия)
+   Палитра (эталон дизайнера):
+     --pl-white:  #FFFFFF  фон
+     --pl-black:  #1A1A1A  текст, полосы
+     --pl-red:    #E31E24  акценты
+     --pl-gray:   #F5F5F5  фон секций
+     --pl-border: #E0E0E0  границы
+   Оптимизировано под Point Mobile PM451 (маленький экран,
+   сенсорный ввод, сканер в режиме Keyboard emulation).
+   ============================================================ */
+
+:root {
+  --pl-white:  #FFFFFF;
+  --pl-black:  #1A1A1A;   /* эталон дизайнера: не чистый чёрный */
+  --pl-red:    #E31E24;   /* эталон дизайнера: корпоративный красный ПЛ */
+  --pl-gray:   #F5F5F5;
+  --pl-border: #E0E0E0;
+  --pl-green:  #2E7D32;
+  --pl-dark-red: #C62828;
+  --pl-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --pl-focus-ring: 0 0 0 4px rgba(227,30,36,0.25);
+  /* Безопасные зоны (iOS notch / терминалы) */
+  --pl-safe-top: env(safe-area-inset-top, 0px);
+  --pl-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+  background: var(--pl-white);
+  color: var(--pl-black);
+  font-size: 17px;            /* крупнее для маленького экрана PM451 */
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Поля ввода — разрешаем выделение (для ручного ввода) */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--pl-safe-top);
+  padding-bottom: var(--pl-safe-bottom);
+}
+
+/* ============ Демо-бейдж ============ */
+.demo-badge {
+  position: fixed;
+  top: calc(var(--pl-safe-top) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #FFA000;
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 10px;
+  z-index: 200;
+  letter-spacing: 0.3px;
+  box-shadow: var(--pl-shadow);
+  pointer-events: none;
+}
+
+/* ============ Шапка с маленьким логотипом ============ */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--pl-white);
+  border-bottom: 3px solid var(--pl-black);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: 8px;
+}
+
+.app-header__logo {
+  height: 30px;
+  width: auto;
+}
+
+.app-header__user {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.app-header__user:active { background: var(--pl-gray); }
+
+.app-header__user small {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  font-weight: 400;
+}
+
+/* ============ Главный экран (логин) ============ */
+
+.screen-login {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.screen-login__logo {
+  width: 240px;
+  max-width: 80%;
+  height: auto;
+  margin-bottom: 24px;
+}
+
+.screen-login__title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.screen-login__subtitle {
+  font-size: 16px;
+  color: #555;
+  margin: 0 0 32px;
+}
+
+.screen-login__scanner-hint {
+  margin-top: 24px;
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+  max-width: 280px;
+}
+
+.screen-login__demo-hint {
+  margin-top: 18px;
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+  max-width: 320px;
+  background: var(--pl-gray);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--pl-border);
+}
+.screen-login__demo-hint code {
+  font-family: 'Consolas', monospace;
+  background: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--pl-border);
+  color: var(--pl-red);
+  font-weight: 700;
+}
+
+/* ============ Список поставок ============ */
+
+.screen-list {
+  padding: 14px;
+  padding-bottom: 90px;
+  flex: 1;
+}
+
+.screen-list__title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 8px 0 14px;
+  text-align: center;
+}
+
+.supply-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--pl-white);
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  box-shadow: var(--pl-shadow);
+  transition: transform 0.1s, box-shadow 0.1s;
+  min-height: 44px;
+}
+
+.supply-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+
+.supply-card__num {
+  display: inline-block;
+  background: var(--pl-red);
+  color: var(--pl-white);
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.supply-card__name {
+  font-size: 18px;
+  font-weight: 600;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.supply-card__progress {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 12px;
+  background: var(--pl-gray);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--pl-border);
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: var(--pl-red);
+  transition: width 0.3s;
+}
+
+.progress-bar__fill--done {
+  background: var(--pl-green);
+}
+
+.supply-card__percent {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 48px;
+  text-align: right;
+}
+
+/* ============ Экран действий поставки ============ */
+
+.screen-supply {
+  padding: 14px;
+  padding-bottom: 90px;
+  flex: 1;
+}
+
+.action-btn-main {
+  width: 100%;
+  padding: 20px;
+  background: var(--pl-red);
+  color: var(--pl-white);
+  border: none;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  margin: 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 56px;
+}
+
+.action-btn-main:active {
+  background: #B00510;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  margin: 24px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--pl-black);
+}
+
+.items-list {
+  background: var(--pl-white);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--pl-border);
+}
+
+.item-row {
+  padding: 12px;
+  border-bottom: 1px solid var(--pl-border);
+  font-size: 14px;
+}
+
+.item-row:last-child { border-bottom: none; }
+
+.item-row--taken {
+  background: #FFF9E6;
+}
+
+.item-row--packed {
+  background: #EEFBEE;
+}
+
+.item-row__num {
+  font-weight: 700;
+  color: var(--pl-red);
+  margin-right: 6px;
+}
+
+.item-row__name {
+  font-weight: 600;
+  margin: 4px 0;
+  line-height: 1.3;
+}
+
+.item-row__meta {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.item-row__packer {
+  color: var(--pl-red);
+  font-weight: 600;
+}
+
+.item-row__progress {
+  display: inline-block;
+  background: var(--pl-gray);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.item-row__progress--done {
+  background: var(--pl-green);
+  color: var(--pl-white);
+}
+
+/* ============ Экран сканирования ============ */
+
+.screen-scan {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.scan-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 16px 0 8px;
+  text-align: center;
+}
+
+.scan-hint {
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.scan-input-wrap {
+  position: relative;
+  margin: 0 0 24px;
+}
+
+.scan-input {
+  width: 100%;
+  padding: 16px;
+  font-size: 18px;
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  background: var(--pl-white);
+  outline: none;
+  text-align: center;
+  letter-spacing: 1px;
+  min-height: 56px;
+}
+
+.scan-input:focus {
+  border-color: var(--pl-red);
+  box-shadow: var(--pl-focus-ring);
+}
+
+.scan-input--error {
+  border-color: var(--pl-dark-red);
+  background: #FFEBEE;
+}
+
+.scan-input--ok {
+  border-color: var(--pl-green);
+  background: #EEFBEE;
+}
+
+/* ============ Кнопки ============ */
+
+.btn {
+  display: inline-block;
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  background: var(--pl-white);
+  color: var(--pl-black);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.1s;
+  min-height: 48px;
+}
+
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn--primary {
+  background: var(--pl-red);
+  color: var(--pl-white);
+  border-color: var(--pl-red);
+}
+
+.btn--primary:active { background: #B00510; }
+
+.btn--secondary {
+  background: var(--pl-white);
+  color: var(--pl-black);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--pl-border);
+  color: #555;
+}
+
+.btn--danger {
+  background: var(--pl-dark-red);
+  color: var(--pl-white);
+  border-color: var(--pl-dark-red);
+}
+
+.btn--block {
+  display: block;
+  width: 100%;
+}
+
+.btn--large {
+  padding: 18px;
+  font-size: 18px;
+  min-height: 56px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.btn-row .btn { flex: 1; }
+
+/* ============ Алерты ============ */
+
+.alert {
+  padding: 16px;
+  border-radius: 8px;
+  margin: 12px 0;
+  font-weight: 600;
+  text-align: center;
+  border: 2px solid;
+  font-size: 15px;
+}
+
+.alert--error {
+  background: #FFEBEE;
+  border-color: var(--pl-dark-red);
+  color: var(--pl-dark-red);
+}
+
+.alert--success {
+  background: #EEFBEE;
+  border-color: var(--pl-green);
+  color: var(--pl-green);
+}
+
+.alert--warning {
+  background: #FFF9E6;
+  border-color: #FFA000;
+  color: #B26A00;
+}
+
+.alert--info {
+  background: var(--pl-gray);
+  border-color: var(--pl-border);
+  color: var(--pl-black);
+}
+
+/* ============ Модальные окна ============ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--pl-white);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  border-top: 6px solid var(--pl-red);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal__title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.modal__body {
+  font-size: 15px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.modal__input {
+  width: 100%;
+  padding: 14px;
+  font-size: 18px;
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  text-align: center;
+  min-height: 52px;
+}
+
+.modal__input:focus {
+  border-color: var(--pl-red);
+  box-shadow: var(--pl-focus-ring);
+  outline: none;
+}
+
+/* ============ Шаги упаковки ============ */
+
+.steps-container {
+  padding: 16px;
+  flex: 1;
+  padding-bottom: 90px;
+}
+
+.step-card {
+  background: var(--pl-white);
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.step-card__num {
+  display: inline-block;
+  background: var(--pl-black);
+  color: var(--pl-white);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.step-card__title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.step-card__big {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--pl-red);
+  text-align: center;
+  padding: 12px;
+  background: var(--pl-gray);
+  border-radius: 8px;
+  margin: 12px 0;
+  letter-spacing: 2px;
+  word-break: break-all;
+}
+
+.step-card__hint {
+  font-size: 14px;
+  color: #666;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.step-card__counter {
+  font-size: 28px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--pl-red);
+  margin: 16px 0;
+}
+
+.step-card__counter small {
+  font-size: 14px;
+  color: #666;
+  display: block;
+  font-weight: 400;
+}
+
+/* ============ Счётчик упаковки (для РФ) ============ */
+
+.pack-counter {
+  background: var(--pl-gray);
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  margin: 16px 0;
+}
+
+.pack-counter__num {
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--pl-red);
+  line-height: 1;
+}
+
+.pack-counter__num--done {
+  color: var(--pl-green);
+}
+
+.pack-counter__label {
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.pack-counter__progress {
+  margin-top: 12px;
+}
+
+/* Список отсканированных РФ-кодов */
+.scanned-list {
+  margin: 12px 0;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--pl-border);
+  border-radius: 8px;
+  background: #FAFAFA;
+}
+
+.scanned-list__empty {
+  padding: 16px;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+}
+
+.scanned-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--pl-border);
+  font-size: 12px;
+  font-family: 'Consolas', monospace;
+  gap: 8px;
+}
+
+.scanned-item:last-child { border-bottom: none; }
+
+.scanned-item__num {
+  background: var(--pl-red);
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.scanned-item__code {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.scanned-item__undo {
+  background: none;
+  border: 1px solid var(--pl-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--pl-dark-red);
+  cursor: pointer;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.scanned-item__undo:active { background: #FFEBEE; }
+
+/* ============ Загрузка ============ */
+
+.loader {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--pl-border);
+  border-top-color: var(--pl-red);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+}
+
+/* ============ Утилиты ============ */
+
+.text-center { text-align: center; }
+.text-bold { font-weight: 700; }
+.text-red { color: var(--pl-red); }
+.text-green { color: var(--pl-green); }
+.mt-16 { margin-top: 16px; }
+.mt-32 { margin-top: 32px; }
+.mb-16 { margin-bottom: 16px; }
+
+.divider {
+  height: 2px;
+  background: var(--pl-black);
+  margin: 24px 0;
+}
+
+/* Полоса прогресса сверху (для шагов) */
+.step-progress {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.step-progress__dot {
+  flex: 1;
+  height: 6px;
+  background: var(--pl-border);
+  border-radius: 3px;
+}
+
+.step-progress__dot--active {
+  background: var(--pl-red);
+}
+
+.step-progress__dot--done {
+  background: var(--pl-green);
+}
+
+/* Подвал */
+.app-footer {
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 11px;
+  color: #999;
+  border-top: 1px solid var(--pl-border);
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+/* ============ Админ-экран ============ */
+
+.admin-screen { padding: 14px; padding-bottom: 90px; flex: 1; }
+
+.admin-card {
+  background: var(--pl-white);
+  border: 1px solid var(--pl-border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.admin-card__title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.admin-card__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--pl-border);
+  gap: 8px;
+}
+.admin-card__row:last-child { border-bottom: none; }
+
+.admin-textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 12px;
+  font-size: 13px;
+  font-family: 'Consolas', monospace;
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  resize: vertical;
+  margin-bottom: 12px;
+}
+
+.admin-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 2px solid var(--pl-black);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  min-height: 48px;
+}
+
+/* Переключатель */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch__slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #ccc;
+  border-radius: 28px;
+  transition: 0.2s;
+}
+.switch__slider:before {
+  content: "";
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.switch input:checked + .switch__slider { background: var(--pl-red); }
+.switch input:checked + .switch__slider:before { transform: translateX(22px); }
+
+/* ============ Тост (короткие уведомления) ============ */
+.toast {
+  position: fixed;
+  bottom: calc(var(--pl-safe-bottom) + 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--pl-black);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 300;
+  box-shadow: var(--pl-shadow);
+  max-width: 90vw;
+  text-align: center;
+  animation: toast-in 0.2s ease;
+}
+.toast--error { background: var(--pl-dark-red); }
+.toast--success { background: var(--pl-green); }
+.toast--warning { background: #FFA000; color: #000; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ============ Анимация пульсации фокуса ============ */
+@keyframes pulse-focus {
+  0%, 100% { box-shadow: var(--pl-focus-ring); }
+  50% { box-shadow: 0 0 0 6px rgba(227,6,19,0.15); }
+}
+.scan-input:focus,
+.modal__input:focus {
+  animation: pulse-focus 1.6s ease-in-out infinite;
+}
+
+/* ============ Прокрутка списков ============ */
+.scroll-area {
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-area::-webkit-scrollbar { width: 6px; }
+.scroll-area::-webkit-scrollbar-thumb { background: var(--pl-border); border-radius: 3px; }
