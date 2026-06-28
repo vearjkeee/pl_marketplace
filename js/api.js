@@ -14,7 +14,7 @@
 const CONFIG = {
   // URL вашего развёрнутого Google Apps Script Web App.
   // Чтобы включить боевой режим — замените на реальный URL.
-  GAS_URL: 'ВСТАВЬТЕ_URL_ВАШЕГО_GAS_WEB_APP_СЮДА',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbyLL1X28X9RuZIQ5DjQLYxZyzV1jNSbBR0sL1fmeklhMaKR6QPYnctLX4Rz6gSry1Iibg/exec',
   REQUEST_TIMEOUT_MS: 20000,
   // Число попыток при сетевой ошибке (для нестабильного Wi-Fi на складе)
   RETRY_COUNT: 2,
