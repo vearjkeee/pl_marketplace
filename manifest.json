@@ -1,0 +1,23 @@
+{
+  "name": "Парфюм Логистик — Упаковка",
+  "short_name": "ПЛ Упаковка",
+  "description": "Система упаковки для маркетплейсов",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#E31E24",
+  "lang": "ru",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "assets/icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
