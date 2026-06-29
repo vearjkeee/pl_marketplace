@@ -29,9 +29,10 @@ Screens.login = {
   render() {
     const demoHint = Api.isDemoMode() ? `
       <div class="screen-login__demo-hint">
-        <strong>Демо-режим.</strong> Бейджи для входа:<br>
-        <code>20SIDOROV</code> &nbsp; <code>20IVANOV</code><br>
-        <code>20PETROV</code> &nbsp; <code>20ADMIN</code> (админ)
+        <strong>Демо-режим.</strong> Бейджи для входа (сканируются с префиксом 20):<br>
+        <code>20BARANCHIK</code> &nbsp; <code>20SIDOROV</code><br>
+        <code>20IVANOV</code> &nbsp; <code>20ADMIN</code> (админ)<br>
+        <small>В Google Sheets бейджи хранятся без префикса: BARANCHIK, SIDOROV...</small>
       </div>
     ` : '';
     return `
@@ -259,16 +260,42 @@ Screens.supply_detail = {
         const taken = !done && item.status === 'Taken';
         const rowClass = done ? 'item-row--packed' : (taken ? 'item-row--taken' : '');
 
+        // Бейдж «Набор» если это родитель набора
+        const setBadge = item.is_set ? `
+          <span style="display:inline-block; background:#FFA000; color:#000; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; margin-left:6px;">НАБОР (${item.set_items ? item.set_items.length : 0} тов.)</span>
+        ` : '';
+
+        // Список элементов набора (показываем под родителем)
+        let setItemsHtml = '';
+        if (item.is_set && item.set_items && item.set_items.length > 0) {
+          setItemsHtml = `
+            <div style="margin-top: 8px; padding-left: 12px; border-left: 3px solid #FFA000;">
+              <div style="font-size:11px; color:#666; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.3px;">В составе набора:</div>
+              ${item.set_items.map(si => `
+                <div style="font-size:12px; padding:3px 0; color:#444;">
+                  • ${esc(si.name)}
+                  <small style="color:#999; margin-left:6px;">${esc(si.barcode)}</small>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        // Срок годности (если уже задан)
+        const expiryHtml = item.expiry ? `<span>Срок: <strong>${esc(item.expiry)}</strong></span>` : '';
+
         return `
           <div class="item-row ${rowClass}">
             <div>
               <span class="item-row__num">№${item.num}</span>
               <span class="item-row__name">${esc(item.name)}</span>
+              ${setBadge}
             </div>
             <div class="item-row__meta">
               <span>ШК юнита: <strong>${esc(item.unit_barcode)}</strong></span>
               <span>Страна: ${esc(item.country)}</span>
               <span>Пупырка: <strong>${esc(item.pack_size)}</strong></span>
+              ${expiryHtml}
             </div>
             <div class="item-row__meta">
               <span class="item-row__progress ${done ? 'item-row__progress--done' : ''}">
@@ -277,6 +304,7 @@ Screens.supply_detail = {
               ${taken ? `<span class="item-row__packer">В работе: ${esc(item.packer)}</span>` : ''}
               ${done ? `<span class="text-green">✓ Готово</span>` : ''}
             </div>
+            ${setItemsHtml}
           </div>
         `;
       }).join('');
@@ -1424,11 +1452,16 @@ Screens.admin = {
           <div class="admin-card__title">➕ Новая поставка</div>
           <input id="new-supply-name" class="admin-input" type="text" placeholder="Название поставки">
           <p style="font-size:12px; color:#666; margin:0 0 6px;">
-            Вставь состав (TSV/CSV). Колонки: Наименование, ШК юнита, Артикул, Юнитов, Страна, Пупырка.
-            Страна «РОССИЯ» = поштучное сканирование, иначе — печать пула.
+            Вставь состав (TSV из Excel). Колонки (8 шт., tab-разделители):<br>
+            <code style="font-size:11px; background:#f5f5f5; padding:2px 6px; border-radius:3px;">Наименование | ШК Юнит | Артикул | Юнитов | Штрихкод | SKU | Страна | ВПП</code><br>
+            <strong>Страна «РОССИЯ»</strong> = поштучное сканирование, иначе — печать пула.<br>
+            <strong>Наборы:</strong> родитель с ШК Юнит, затем строки без ШК Юнит (элементы) привяжутся автоматически.<br>
+            Артикул и SKU в UI не отображаются, но сохраняются в таблицу.
           </p>
-          <textarea id="new-supply-tsv" class="admin-textarea" placeholder="Туалетная вода Dior 100мл&#9;4895165564564&#9;art-DS100&#9;72&#9;ФРАНЦИЯ&#9;25х20
-Шампунь Сиберика 400мл&#9;4607034590012&#9;art-NS400&#9;60&#9;РОССИЯ&#9;25х20"></textarea>
+          <textarea id="new-supply-tsv" class="admin-textarea" placeholder="Наименование товара&#9;ШК Юнит&#9;Артикул&#9;Юнитов&#9;Штрихкод&#9;SKU&#9;Страна&#9;ВПП
+L'Oreal крем-краска Excellence Cool Creme 8.11&#9;2050690288446&#9;2060560&#9;96&#9;3600523943265&#9;96&#9;БЕЛЬГИЯ&#9;35х30
+L'Oreal Дневной крем Возраст Эксперт 45+&#9;2050689909499&#9;2123124&#9;30&#9;3600522264675&#9;30&#9;25х40&#9;01.04.2028
+L'Oreal Ночной крем Возраст Эксперт 45+&#9;&#9;&#9;3600522548072&#9;30&#9;&#9;"></textarea>
           <button class="btn btn--primary btn--block" id="add-supply-btn">Добавить поставку</button>
           <div id="add-result"></div>
         </div>
