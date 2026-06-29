@@ -20,11 +20,10 @@ const Mock = {
 
     const state = {
       employees: [
-        { badge_id: 'BARANCHIK', fio: 'Баранчик Валерия Игоревна', role: 'packer' },
-        { badge_id: 'SIDOROV',   fio: 'Сидоров А.В.',              role: 'packer' },
-        { badge_id: 'IVANOV',    fio: 'Иванов П.С.',               role: 'packer' },
-        { badge_id: 'PETROV',    fio: 'Петров И.К.',               role: 'admin'  },
-        { badge_id: 'ADMIN',     fio: 'Администратор',             role: 'admin'  }
+        { badge_id: '20SIDOROV', fio: 'Сидоров А.В.', role: 'packer' },
+        { badge_id: '20IVANOV',  fio: 'Иванов П.С.',  role: 'packer' },
+        { badge_id: '20PETROV',  fio: 'Петров И.К.',  role: 'admin'  },
+        { badge_id: '20ADMIN',   fio: 'Администратор', role: 'admin'  }
       ],
       supplies: [
         {
@@ -67,22 +66,17 @@ const Mock = {
     return state;
   },
 
-  _mkItem(num, name, unitBarcode, art, units, country, packSize, packed, opts) {
-    opts = opts || {};
+  _mkItem(num, name, unitBarcode, art, units, country, packSize, packed) {
     return {
       num: num,
       name: name,
       unit_barcode: unitBarcode,
-      barcode: opts.barcode || unitBarcode,
-      art: art || '',
-      sku: opts.sku || '',
+      barcode: unitBarcode,
+      art: art,
       total_units: units,
+      sku: 'SKU-' + num,
       country: country,
       pack_size: packSize,
-      expiry: opts.expiry || '',
-      is_set: opts.is_set || false,         // признак родителя набора
-      set_items: opts.set_items || null,    // массив элементов набора
-      is_set_item: opts.is_set_item || false, // признак элемента набора
       // служебные
       row_index: num,
       status: packed >= units ? 'Packed' : (packed > 0 ? 'Taken' : 'Empty'),
@@ -102,7 +96,8 @@ const Mock = {
   },
 
   _delay(ms) {
-    return new Promise(r => setTimeout(r, ms || 250 + Math.random() * 200));
+    // Быстро в демо: 30-80мс по умолчанию (имитация сети без тормозов)
+    return new Promise(r => setTimeout(r, ms || 30 + Math.random() * 50));
   },
 
   // --- Эндпоинты (возвращают Promise с данными, как настоящий GAS) ---
@@ -115,14 +110,13 @@ const Mock = {
   async login(badge) {
     await this._delay();
     const st = this._state();
-    // Бейджи сканируются с невидимым префиксом "20" (WMS).
-    // В таблице хранятся БЕЗ префикса: BARANCHIK, SIDOROV.
-    // Отрезаем префикс перед поиском.
-    const cleanBadge = String(badge || '').trim();
-    const lookup = cleanBadge.startsWith('20') ? cleanBadge.substring(2) : cleanBadge;
-    const emp = st.employees.find(e => e.badge_id === lookup || e.badge_id === cleanBadge);
+    const emp = st.employees.find(e => e.badge_id === badge);
     if (!emp) {
-      throw new Error('Бейдж не найден: ' + lookup + '. Проверь лист «Сотрудники» в Google Sheets.');
+      // В демо: любой бейдж с префиксом 20 логинится как демо-пользователь
+      if (badge && badge.startsWith('20')) {
+        return { badge: badge, fio: 'Демо-сотрудник', role: 'packer', demo: true };
+      }
+      throw new Error('Бейдж не найден. В демо используй: 20SIDOROV, 20IVANOV, 20PETROV или 20ADMIN');
     }
     return { badge: emp.badge_id, fio: emp.fio, role: emp.role, demo: true };
   },
@@ -385,24 +379,17 @@ const Mock = {
       is_active: true,
       sheet_name: sheet
     });
-    // Парсим TSV (новый формат с поддержкой наборов)
-    const parsed = this._parseTsv(payload.tsv);
-    st.sheets[id] = parsed.map((row, idx) => this._mkItem(
+    // Парсим TSV из payload.tsv в items
+    const items = this._parseTsv(payload.tsv);
+    st.sheets[id] = items.map((row, idx) => this._mkItem(
       idx + 1,
-      row.name,
-      row.unit_barcode,
-      row.art,
-      row.units,
-      row.country,
-      row.pack_size,
-      0,
-      {
-        barcode: row.barcode,
-        sku: row.sku,
-        expiry: row.expiry,
-        is_set: row.is_set,
-        set_items: row.set_items
-      }
+      row.name || ('Товар ' + (idx + 1)),
+      row.unit_barcode || ('200' + String(1000 + idx)),
+      row.art || '',
+      parseInt(row.units, 10) || 1,
+      row.country || 'РОССИЯ',
+      row.pack_size || '25х20',
+      0
     ));
     this._save(st);
     return { status: 'ok', supply_id: id };
@@ -442,108 +429,24 @@ const Mock = {
     };
   },
 
-  /**
-   * Парсер TSV поставок.
-   * Формат (8 колонок):
-   *   1. Наименование товара
-   *   2. ШК Юнит
-   *   3. Артикул (Код товара)
-   *   4. Юнитов
-   *   5. Штрихкод
-   *   6. SKU
-   *   7. Страна производитель (или ВПП для наборов)
-   *   8. ВПП (или Срок годности для наборов)
-   *
-   * Распознавание наборов:
-   *   - Строка с ШК Юнит (кол.2) → самостоятельный товар / родитель набора
-   *   - Строка БЕЗ ШК Юнит, но со Штрихкодом (кол.5) → элемент набора,
-   *     привязывается к предыдущему родителю
-   *   - Строка без ШК Юнит и без Штрихкода → ошибка/пустая (пропуск)
-   *
-   * Возвращает массив объектов: { type: 'item'|'set_item', ... }
-   */
   _parseTsv(tsv) {
     if (!tsv) return [];
-    const lines = tsv.replace(/\r\n/g, '\n').split(/\n/).filter(l => l.trim());
-    if (lines.length === 0) return [];
-
-    // Пропускаем заголовок (если первая строка похожа на него)
-    const startIdx = /наименован|шк\s*юнит|артикул|страна|впп/i.test(lines[0]) ? 1 : 0;
-
+    const lines = tsv.trim().split(/\r?\n/);
     const rows = [];
-    let currentSetParent = null;  // ссылка на родителя набора (для элементов)
-
+    // Пропускаем заголовок если он похожий
+    const startIdx = (lines[0] && /наименован|шк|артикул|страна/i.test(lines[0])) ? 1 : 0;
     for (let i = startIdx; i < lines.length; i++) {
-      const cols = lines[i].split(/\t/).map(c => c.trim());
-      // добиваем до 8 колонок
-      while (cols.length < 8) cols.push('');
-
-      const name = cols[0];
-      const unitBarcode = cols[1];
-      const art = cols[2];
-      const units = cols[3];
-      const barcode = cols[4];
-      const sku = cols[5];
-      const col7 = cols[6];  // страна ИЛИ ВПП (для наборов)
-      const col8 = cols[7];  // ВПП ИЛИ срок годности (для наборов)
-
-      if (!name && !unitBarcode && !barcode) continue;  // пустая строка
-
-      // Распознавание: элемент набора (нет ШК Юнит, но есть Штрихкод)
-      if (!unitBarcode && barcode) {
-        if (!currentSetParent) {
-          // Элемент набора без родителя — пропускаем с предупреждением
-          console.warn('[Mock] Элемент набора без родителя, строка пропущена:', name);
-          continue;
-        }
-        currentSetParent.set_items.push({
-          name: name,
-          barcode: barcode,
-          sku: sku || '',
-          units: parseInt(units, 10) || 1
-        });
-        continue;
-      }
-
-      // Самостоятельный товар или родитель набора
-      // Эвристика для col7/col8: что страна, что ВПП, что срок годности
-      let country = '';
-      let packSize = '';
-      let expiry = '';
-
-      const isDate = (s) => /^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(s);
-      const isSize = (s) => /\d+\s*[хx]\s*\d+/i.test(s);
-
-      if (isDate(col7)) { expiry = col7; }
-      else if (isSize(col7)) { packSize = col7; }
-      else if (col7) { country = col7; }
-
-      if (isDate(col8)) { expiry = col8; }
-      else if (isSize(col8)) { packSize = col8; }
-      else if (col8 && !country) { country = col8; }
-
-      if (!country) country = 'РОССИЯ';
-      if (!packSize) packSize = '25х20';
-
-      const item = {
-        name: name,
-        unit_barcode: unitBarcode,
-        art: art,
-        barcode: barcode || unitBarcode,
-        sku: sku,
-        units: parseInt(units, 10) || 1,
-        country: country.toUpperCase(),
-        pack_size: packSize,
-        expiry: expiry,
-        is_set: false,
-        set_items: []
-      };
-      rows.push(item);
-      currentSetParent = item;  // потенциальный родитель для следующих строк
+      const cols = lines[i].split(/\t|;/);
+      if (cols.length < 2) continue;
+      rows.push({
+        name: cols[0] ? cols[0].trim() : '',
+        unit_barcode: cols[1] ? cols[1].trim() : '',
+        art: cols[2] ? cols[2].trim() : '',
+        units: cols[3] ? cols[3].trim() : '1',
+        country: cols[4] ? cols[4].trim() : 'РОССИЯ',
+        pack_size: cols[5] ? cols[5].trim() : '25х20'
+      });
     }
-
-    // Помечаем родителями наборов те товары, у которых есть set_items
-    rows.forEach(r => { if (r.set_items.length > 0) r.is_set = true; });
     return rows;
   },
 

@@ -21,7 +21,7 @@ const App = {
     // Демо-бейдж (если GAS_URL не настроен)
     if (Api.isDemoMode()) {
       this._showDemoBadge();
-      console.log('[PL] Работает в ДЕМО-режиме (без GAS). Бейджи: 20SIDOROV, 20IVANOV, 20PETROV, 20ADMIN');
+      console.log('[PL] Работает в ДЕМО-режиме (без GAS). Бейджи: 20BARANCHIK, 20SIDOROV, 20IVANOV, 20ADMIN');
     }
 
     // Запрашиваем wake lock (не гасить экран)

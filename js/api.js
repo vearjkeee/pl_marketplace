@@ -13,12 +13,11 @@
 
 const CONFIG = {
   // URL вашего развёрнутого Google Apps Script Web App.
-  // Чтобы включить боевой режим — замените на реальный URL.
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbyLL1X28X9RuZIQ5DjQLYxZyzV1jNSbBR0sL1fmeklhMaKR6QPYnctLX4Rz6gSry1Iibg/exec',
-  REQUEST_TIMEOUT_MS: 20000,
-  // Число попыток при сетевой ошибке (для нестабильного Wi-Fi на складе)
-  RETRY_COUNT: 2,
-  RETRY_DELAY_MS: 800
+  GAS_URL: 'ВСТАВЬТЕ_URL_ВАШЕГО_GAS_WEB_APP_СЮДА',
+  REQUEST_TIMEOUT_MS: 10000,   // 10с (было 20с) — GAS обычно отвечает за 1-3с
+  RETRY_COUNT: 1,              // 1 ретрай (было 2) — итого 2 попытки
+  RETRY_DELAY_MS: 300,         // 300мс между попытками (было 800мс)
+  CACHE_TTL_MS: 30000          // 30с кеш GET-запросов (supplies, supply_detail)
 };
 
 const Api = {
@@ -47,7 +46,16 @@ const Api = {
       return this._dispatchMock(params);
     }
 
+    // Кеш GET-запросов (кроме ping и print_queue)
+    const cacheKey = (params.action === 'ping' || params.action === 'print_queue')
+      ? null : JSON.stringify(params);
+    if (cacheKey) {
+      const cached = this._getCache(cacheKey);
+      if (cached) return cached;
+    }
+
     let lastErr;
+    let isNetworkError = false;
     for (let attempt = 0; attempt <= CONFIG.RETRY_COUNT; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT_MS);
@@ -61,12 +69,21 @@ const Api = {
         let data;
         try { data = JSON.parse(text); }
         catch (e) {
+          // Не-JSON — это сетевая/серверная проблема, можно ретраить
+          isNetworkError = true;
           throw new Error('GAS вернул не-JSON: ' + text.substring(0, 200));
         }
+        // Бизнес-ошибка (error в JSON) — НЕ ретраим, сразу выбрасываем
         if (data && data.error) throw new Error(data.error);
+        // Успех — кешируем и возвращаем
+        if (cacheKey) this._setCache(cacheKey, data);
         return data;
       } catch (e) {
         lastErr = e;
+        isNetworkError = isNetworkError || (e.name === 'AbortError') ||
+          /fetch|network|Failed to fetch/i.test(e.message);
+        // Ретрай только на сетевых ошибках, не на бизнес-ошибках
+        if (!isNetworkError) break;
         if (attempt < CONFIG.RETRY_COUNT) {
           await new Promise(r => setTimeout(r, CONFIG.RETRY_DELAY_MS));
         }
@@ -82,7 +99,11 @@ const Api = {
       return this._dispatchMockPost(payload);
     }
 
+    // POST не кешируем, но инвалидируем кеш related GET-запросов
+    this._invalidateCache(payload);
+
     let lastErr;
+    let isNetworkError = false;
     for (let attempt = 0; attempt <= CONFIG.RETRY_COUNT; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT_MS);
@@ -97,12 +118,16 @@ const Api = {
         let data;
         try { data = JSON.parse(text); }
         catch (e) {
+          isNetworkError = true;
           throw new Error('GAS вернул не-JSON: ' + text.substring(0, 200));
         }
         if (data && data.error) throw new Error(data.error);
         return data;
       } catch (e) {
         lastErr = e;
+        isNetworkError = isNetworkError || (e.name === 'AbortError') ||
+          /fetch|network|Failed to fetch/i.test(e.message);
+        if (!isNetworkError) break;
         if (attempt < CONFIG.RETRY_COUNT) {
           await new Promise(r => setTimeout(r, CONFIG.RETRY_DELAY_MS));
         }
@@ -111,6 +136,35 @@ const Api = {
       }
     }
     throw lastErr;
+  },
+
+  // === Кеш GET-запросов (в памяти, с TTL) ===
+  _cache: {},
+  _getCache(key) {
+    const c = this._cache[key];
+    if (!c) return null;
+    if (Date.now() - c.ts > CONFIG.CACHE_TTL_MS) {
+      delete this._cache[key];
+      return null;
+    }
+    return c.data;
+  },
+  _setCache(key, data) {
+    this._cache[key] = { ts: Date.now(), data: data };
+  },
+  _invalidateCache(payload) {
+    // POST take_unit/scan_unit/complete_packing/reprint_code инвалидируют кеш поставок
+    if (payload.supply_id) {
+      Object.keys(this._cache).forEach(key => {
+        // Чистим кеш supply_detail и supplies
+        if (key.includes(payload.supply_id) || key.includes('"action":"supplies"')) {
+          delete this._cache[key];
+        }
+      });
+    }
+  },
+  clearCache() {
+    this._cache = {};
   },
 
   // Маршрутизация GET-запросов в Mock по action

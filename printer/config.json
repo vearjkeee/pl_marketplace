@@ -2,7 +2,7 @@
   "_comment": "Сервер печати GS1 DataMatrix для системы Парфюм Логистик. Читает задания из листа 'Задания_печати' Google Таблицы.",
 
   "gas": {
-    "webapp_url": "https://script.google.com/macros/s/AKfycbyLL1X28X9RuZIQ5DjQLYxZyzV1jNSbBR0sL1fmeklhMaKR6QPYnctLX4Rz6gSry1Iibg/exec",
+    "webapp_url": "ВСТАВЬТЕ_URL_ВАШЕГО_GAS_WEB_APP_СЮДА",
     "poll_interval_sec": 3,
     "request_timeout_sec": 15
   },

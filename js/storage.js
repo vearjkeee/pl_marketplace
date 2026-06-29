@@ -10,11 +10,12 @@
 
 const Storage = {
   KEYS: {
-    SESSION:       'pl_session',         // { badge, fio, role, loginTime }
-    CURRENT:       'pl_current',         // { supplyId, unitRow, step, ... } — текущее состояние упаковки
-    SUPPLY_CACHE:  'pl_supplies_cache',  // кеш списка поставок (на 60 сек)
-    SETTINGS:      'pl_settings',        // настройки приложения (вкл. allow_discard_tape)
-    DEMO_STATE:    'pl_demo_state'       // состояние демо-бэкенда (мок-данные)
+    SESSION:       'pl_session',
+    CURRENT:       'pl_current',
+    SUPPLY_CACHE:  'pl_supplies_cache',
+    DETAIL_CACHE:  'pl_detail_cache',    // кеш состава поставок (supply_id → {ts, data})
+    SETTINGS:      'pl_settings',
+    DEMO_STATE:    'pl_demo_state'
   },
 
   // Настройки по умолчанию
@@ -105,6 +106,34 @@ const Storage = {
 
   clearSuppliesCache() {
     this.remove(this.KEYS.SUPPLY_CACHE);
+  },
+
+  // --- Кеш состава поставки (на 30 секунд) ---
+
+  getDetailCache(supplyId) {
+    const all = this.get(this.KEYS.DETAIL_CACHE, {});
+    const c = all[supplyId];
+    if (!c) return null;
+    if (Date.now() - c.ts > 30000) return null;  // TTL 30с
+    return c.data;
+  },
+
+  setDetailCache(supplyId, data) {
+    const all = this.get(this.KEYS.DETAIL_CACHE, {});
+    all[supplyId] = { ts: Date.now(), data: data };
+    this.set(this.KEYS.DETAIL_CACHE, all);
+  },
+
+  clearDetailCache(supplyId) {
+    const all = this.get(this.KEYS.DETAIL_CACHE, {});
+    if (supplyId) {
+      delete all[supplyId];
+    } else {
+      // очистить весь кеш деталей
+      this.remove(this.KEYS.DETAIL_CACHE);
+      return;
+    }
+    this.set(this.KEYS.DETAIL_CACHE, all);
   },
 
   // --- Настройки ---

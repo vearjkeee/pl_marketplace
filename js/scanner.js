@@ -51,9 +51,9 @@ const Scanner = {
         const value = input.value.trim();
         if (!value) return;
 
-        // Анти-дубликат: один и тот же код за <400мс — игнорируем
+        // Анти-дубликат: один и тот же код за <150мс — игнорируем
         const now = Date.now();
-        const debounce = opts.debounceMs || 400;
+        const debounce = opts.debounceMs || 150;
         if (this._lastScan.value === value && (now - this._lastScan.time) < debounce) {
           input.value = '';
           return;
@@ -84,14 +84,12 @@ const Scanner = {
       setTimeout(() => {
         if (!document.body.contains(input)) return;   // поле удалено из DOM
         if (this._isLocked) return;                    // открыта модалка
-        // Если фокус ушёл на другое поле ввода — не возвращаем
         const ae = document.activeElement;
         if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
-        // Иначе возвращаем фокус на это поле (если оно основное)
         if (isPrimary && this._activeInput === input) {
           try { input.focus(); } catch (e) {}
         }
-      }, 120);
+      }, 80);  // было 120мс, стало 80мс
     });
 
     // Авто-фокус при показе
@@ -99,24 +97,18 @@ const Scanner = {
   },
 
   /**
-   * Установить фокус на поле ввода (надёжно, с повторной попыткой).
+   * Установить фокус на поле ввода (надёжно, с одной повторной попыткой).
    */
   focus(input) {
     if (!input) return;
     // Первая попытка сразу
     try { input.focus({ preventScroll: true }); } catch (e) {}
-    // Повторная через 50мс (на случай если элемент ещё не виден)
+    // Повторная через 60мс (на случай если элемент ещё не виден)
     setTimeout(() => {
       if (document.body.contains(input)) {
         try { input.focus({ preventScroll: true }); input.select(); } catch (e) {}
       }
-    }, 50);
-    // И ещё одна через 150мс (для медленных переходов между экранами)
-    setTimeout(() => {
-      if (document.body.contains(input)) {
-        try { input.focus({ preventScroll: true }); } catch (e) {}
-      }
-    }, 150);
+    }, 60);
   },
 
   /**
@@ -267,3 +259,65 @@ document.addEventListener('visibilitychange', () => {
     Scanner.requestWakeLock();
   }
 });
+
+// ============================================================
+// УПРАВЛЕНИЕ ЭКРАННОЙ КЛАВИАТУРОЙ (для TSD PM451 с физической клавиатурой)
+// ============================================================
+// Проблема: на Android при авто-фокусе поля ввода сразу открывается
+// экранная клавиатура, перекрывая интерфейс. На ТСД есть физическая
+// клавиатура, поэтому экранная нужна только в редких случаях.
+//
+// Решение: ВСЕ поля помечаются data-scanner-field="true" и
+// inputmode="none". При авто-фокусе клавиатура НЕ открывается
+// (физическая клавиатура и сканер работают нормально). При ручном
+// тапе по полю — inputmode меняется на указанный в data-tap-inputmode:
+//   "numeric" → цифровая клавиатура (для срока годности, количества)
+//   "text"    → полная клавиатура (для названия поставки, TSV)
+//   не указан → полная клавиатура (по умолчанию)
+// При blur — inputmode="none" восстанавливается.
+// ============================================================
+
+// Ручной тап по полю → показываем клавиатуру нужного типа
+document.addEventListener('touchstart', (e) => {
+  const el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') &&
+      el.dataset.scannerField === 'true') {
+    const tapMode = el.dataset.tapInputmode || 'text';
+    el.setAttribute('inputmode', tapMode);
+    // Если поле уже в фокусе (авто-фокус), перезапускаем фокус,
+    // чтобы браузер показал клавиатуру
+    if (document.activeElement === el) {
+      el.blur();
+      setTimeout(() => { try { el.focus(); } catch (_) {} }, 50);
+    }
+  }
+}, { passive: true });
+
+// Для desktop/мыши — click тоже показывает клавиатуру
+document.addEventListener('click', (e) => {
+  const el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') &&
+      el.dataset.scannerField === 'true') {
+    if (el.getAttribute('inputmode') === 'none') {
+      const tapMode = el.dataset.tapInputmode || 'text';
+      el.setAttribute('inputmode', tapMode);
+      if (document.activeElement === el) {
+        el.blur();
+        setTimeout(() => { try { el.focus(); } catch (_) {} }, 50);
+      }
+    }
+  }
+}, { passive: true });
+
+// При blur поля — восстанавливаем inputmode="none" для следующего авто-фокуса
+document.addEventListener('blur', (e) => {
+  const el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') &&
+      el.dataset.scannerField === 'true') {
+    setTimeout(() => {
+      if (document.body.contains(el)) {
+        el.setAttribute('inputmode', 'none');
+      }
+    }, 120);
+  }
+}, true);  // capture=true, т.к. blur не всплывает

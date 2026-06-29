@@ -29,10 +29,9 @@ Screens.login = {
   render() {
     const demoHint = Api.isDemoMode() ? `
       <div class="screen-login__demo-hint">
-        <strong>Демо-режим.</strong> Бейджи для входа (сканируются с префиксом 20):<br>
-        <code>20BARANCHIK</code> &nbsp; <code>20SIDOROV</code><br>
-        <code>20IVANOV</code> &nbsp; <code>20ADMIN</code> (админ)<br>
-        <small>В Google Sheets бейджи хранятся без префикса: BARANCHIK, SIDOROV...</small>
+        <strong>Демо-режим.</strong> Бейджи для входа:<br>
+        <code>20SIDOROV</code> &nbsp; <code>20IVANOV</code><br>
+        <code>20PETROV</code> &nbsp; <code>20ADMIN</code> (админ)
       </div>
     ` : '';
     return `
@@ -43,7 +42,7 @@ Screens.login = {
 
         <p class="text-bold">Отсканируй бейдж сотрудника</p>
         <div class="scan-input-wrap" style="max-width: 320px; margin: 16px auto;">
-          <input id="login-input" class="scan-input" type="text" autocomplete="off" placeholder="Бейдж (20...)">
+          <input id="login-input" class="scan-input" type="text" autocomplete="off" placeholder="Бейдж (20...)" inputmode="none" data-scanner-field="true">
         </div>
         <div id="login-error" class="alert alert--error" style="display:none; max-width: 320px; margin: 0 auto;"></div>
 
@@ -148,14 +147,8 @@ Screens.supplies = {
 
     const suppliesContainer = container.querySelector('#supplies-container');
 
-    try {
-      let supplies = Storage.getSuppliesCache();
-      if (!supplies) {
-        const resp = await Api.getSupplies();
-        supplies = resp.supplies || [];
-        Storage.setSuppliesCache(supplies);
-      }
-
+    // Вынесенная функция рендера списка поставок
+    function renderSuppliesList(supplies) {
       if (supplies.length === 0) {
         suppliesContainer.innerHTML = `
           <div class="alert alert--info">
@@ -164,7 +157,6 @@ Screens.supplies = {
         `;
         return;
       }
-
       suppliesContainer.innerHTML = supplies.map((s, idx) => {
         const pct = s.percent || 0;
         const done = pct >= 100;
@@ -194,13 +186,43 @@ Screens.supplies = {
           App.navigate('supply_detail', { supplyId: sid });
         });
       });
+    }
+
+    try {
+      // Оптимистичный рендер: сначала из кеша (мгновенно), потом фоново обновляем
+      let cached = Storage.getSuppliesCache();
+      let renderedFromCache = false;
+      if (cached) {
+        renderSuppliesList(cached);
+        renderedFromCache = true;
+      }
+
+      // Фоновое обновление с сервера
+      const resp = await Api.getSupplies();
+      const supplies = resp.supplies || [];
+      Storage.setSuppliesCache(supplies);
+
+      if (!renderedFromCache) {
+        renderSuppliesList(supplies);
+      } else {
+        // Обновляем только если данные изменились (сравниваем по percent)
+        const changed = supplies.some((s, i) => {
+          const c = cached[i];
+          return !c || c.percent !== s.percent || c.packed_units !== s.packed_units;
+        });
+        if (changed) renderSuppliesList(supplies);
+      }
     } catch (e) {
-      suppliesContainer.innerHTML = `
-        <div class="alert alert--error">
-          Ошибка загрузки поставок: ${esc(e.message)}
-        </div>
-        <button class="btn btn--secondary btn--block mt-16" onclick="App.navigate('supplies')">Повторить</button>
-      `;
+      if (!suppliesContainer.innerHTML.trim() || suppliesContainer.querySelector('.loader')) {
+        suppliesContainer.innerHTML = `
+          <div class="alert alert--error">
+            Ошибка загрузки поставок: ${esc(e.message)}
+          </div>
+          <button class="btn btn--secondary btn--block mt-16" onclick="App.navigate('supplies')">Повторить</button>
+        `;
+      } else {
+        App.toast('Не удалось обновить список: ' + e.message, 'error');
+      }
     }
   }
 };
@@ -237,85 +259,112 @@ Screens.supply_detail = {
     });
 
     container.querySelector('#start-pack-btn').addEventListener('click', () => {
-      App.navigate('scan_unit', { supplyId: params.supplyId });
+      // Передаём items в scan_unit, чтобы не рефетчить
+      const cached = Storage.getDetailCache(params.supplyId);
+      App.navigate('scan_unit', {
+        supplyId: params.supplyId,
+        _prefetchedItems: cached ? cached.items : null
+      });
     });
 
     const titleEl = container.querySelector('#supply-title');
     const itemsContainer = container.querySelector('#items-container');
 
+    // Оптимистичный рендер: сначала из кеша (мгновенно), потом обновляем с сервера
+    const cached = Storage.getDetailCache(params.supplyId);
+    let renderedFromCache = false;
+    if (cached) {
+      renderSupplyItems(titleEl, itemsContainer, cached.supply, cached.items);
+      renderedFromCache = true;
+    }
+
     try {
       const resp = await Api.getSupplyDetail(params.supplyId);
+      Storage.setDetailCache(params.supplyId, resp);  // кешируем на 30с
       const supply = resp.supply;
       const items = resp.items || [];
 
-      titleEl.textContent = supply.name + ' (' + supply.percent + '%)';
-
-      if (items.length === 0) {
-        itemsContainer.innerHTML = `<div class="alert alert--info">В поставке нет позиций.</div>`;
-        return;
+      // Если уже отрисовали из кеша — обновляем только если данные изменились
+      if (renderedFromCache) {
+        titleEl.textContent = supply.name + ' (' + supply.percent + '%)';
+      } else {
+        renderSupplyItems(titleEl, itemsContainer, supply, items);
       }
-
-      itemsContainer.innerHTML = items.map(item => {
-        const done = item.packed_units >= item.total_units;
-        const taken = !done && item.status === 'Taken';
-        const rowClass = done ? 'item-row--packed' : (taken ? 'item-row--taken' : '');
-
-        // Бейдж «Набор» если это родитель набора
-        const setBadge = item.is_set ? `
-          <span style="display:inline-block; background:#FFA000; color:#000; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; margin-left:6px;">НАБОР (${item.set_items ? item.set_items.length : 0} тов.)</span>
-        ` : '';
-
-        // Список элементов набора (показываем под родителем)
-        let setItemsHtml = '';
-        if (item.is_set && item.set_items && item.set_items.length > 0) {
-          setItemsHtml = `
-            <div style="margin-top: 8px; padding-left: 12px; border-left: 3px solid #FFA000;">
-              <div style="font-size:11px; color:#666; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.3px;">В составе набора:</div>
-              ${item.set_items.map(si => `
-                <div style="font-size:12px; padding:3px 0; color:#444;">
-                  • ${esc(si.name)}
-                  <small style="color:#999; margin-left:6px;">${esc(si.barcode)}</small>
-                </div>
-              `).join('')}
-            </div>
-          `;
-        }
-
-        // Срок годности (если уже задан)
-        const expiryHtml = item.expiry ? `<span>Срок: <strong>${esc(item.expiry)}</strong></span>` : '';
-
-        return `
-          <div class="item-row ${rowClass}">
-            <div>
-              <span class="item-row__num">№${item.num}</span>
-              <span class="item-row__name">${esc(item.name)}</span>
-              ${setBadge}
-            </div>
-            <div class="item-row__meta">
-              <span>ШК юнита: <strong>${esc(item.unit_barcode)}</strong></span>
-              <span>Страна: ${esc(item.country)}</span>
-              <span>Пупырка: <strong>${esc(item.pack_size)}</strong></span>
-              ${expiryHtml}
-            </div>
-            <div class="item-row__meta">
-              <span class="item-row__progress ${done ? 'item-row__progress--done' : ''}">
-                Упаковано: ${item.packed_units} / ${item.total_units}
-              </span>
-              ${taken ? `<span class="item-row__packer">В работе: ${esc(item.packer)}</span>` : ''}
-              ${done ? `<span class="text-green">✓ Готово</span>` : ''}
-            </div>
-            ${setItemsHtml}
-          </div>
-        `;
-      }).join('');
     } catch (e) {
-      itemsContainer.innerHTML = `
-        <div class="alert alert--error">Ошибка: ${esc(e.message)}</div>
-        <button class="btn btn--secondary btn--block mt-16" onclick="App.navigate('supply_detail', {supplyId: '${esc(params.supplyId)}'})">Повторить</button>
-      `;
+      if (!renderedFromCache) {
+        itemsContainer.innerHTML = `
+          <div class="alert alert--error">Ошибка: ${esc(e.message)}</div>
+          <button class="btn btn--secondary btn--block mt-16" onclick="App.navigate('supply_detail', {supplyId: '${esc(params.supplyId)}'})">Повторить</button>
+        `;
+      } else {
+        App.toast('Не удалось обновить: ' + e.message, 'error');
+      }
     }
   }
 };
+
+// Вспомогательная функция рендера состава поставки (вынесена для переиспользования)
+function renderSupplyItems(titleEl, itemsContainer, supply, items) {
+  titleEl.textContent = supply.name + ' (' + supply.percent + '%)';
+
+  if (items.length === 0) {
+    itemsContainer.innerHTML = `<div class="alert alert--info">В поставке нет позиций.</div>`;
+    return;
+  }
+
+  itemsContainer.innerHTML = items.map(item => {
+    const done = item.packed_units >= item.total_units;
+    const taken = !done && item.status === 'Taken';
+    const rowClass = done ? 'item-row--packed' : (taken ? 'item-row--taken' : '');
+
+    // Бейдж «Набор» если это родитель набора
+    const setBadge = item.is_set ? `
+      <span style="display:inline-block; background:#FFA000; color:#000; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; margin-left:6px;">НАБОР (${item.set_items ? item.set_items.length : 0} тов.)</span>
+    ` : '';
+
+    // Список элементов набора (показываем под родителем)
+    let setItemsHtml = '';
+    if (item.is_set && item.set_items && item.set_items.length > 0) {
+      setItemsHtml = `
+        <div style="margin-top: 8px; padding-left: 12px; border-left: 3px solid #FFA000;">
+          <div style="font-size:11px; color:#666; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.3px;">В составе набора:</div>
+          ${item.set_items.map(si => `
+            <div style="font-size:12px; padding:3px 0; color:#444;">
+              • ${esc(si.name)}
+              <small style="color:#999; margin-left:6px;">${esc(si.barcode)}</small>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    const expiryHtml = item.expiry ? `<span>Срок: <strong>${esc(item.expiry)}</strong></span>` : '';
+
+    return `
+      <div class="item-row ${rowClass}">
+        <div>
+          <span class="item-row__num">№${item.num}</span>
+          <span class="item-row__name">${esc(item.name)}</span>
+          ${setBadge}
+        </div>
+        <div class="item-row__meta">
+          <span>ШК юнита: <strong>${esc(item.unit_barcode)}</strong></span>
+          <span>Страна: ${esc(item.country)}</span>
+          <span>Пупырка: <strong>${esc(item.pack_size)}</strong></span>
+          ${expiryHtml}
+        </div>
+        <div class="item-row__meta">
+          <span class="item-row__progress ${done ? 'item-row__progress--done' : ''}">
+            Упаковано: ${item.packed_units} / ${item.total_units}
+          </span>
+          ${taken ? `<span class="item-row__packer">В работе: ${esc(item.packer)}</span>` : ''}
+          ${done ? `<span class="text-green">✓ Готово</span>` : ''}
+        </div>
+        ${setItemsHtml}
+      </div>
+    `;
+  }).join('');
+}
 
 // ============================================================
 // 4. SCAN_UNIT — отсканируй ШК товара
@@ -332,7 +381,7 @@ Screens.scan_unit = {
         <h2 class="scan-title">Отсканируй ШК товара</h2>
         <p class="scan-hint">Наведи сканер на штрих-код товара</p>
         <div class="scan-input-wrap">
-          <input id="unit-scan-input" class="scan-input" type="text" autocomplete="off" placeholder="ШК товара">
+          <input id="unit-scan-input" class="scan-input" type="text" autocomplete="off" placeholder="ШК товара" inputmode="none" data-scanner-field="true">
         </div>
         <div id="scan-error" class="alert alert--error" style="display:none;"></div>
         <div class="btn-row">
@@ -353,10 +402,19 @@ Screens.scan_unit = {
     const input = container.querySelector('#unit-scan-input');
     const errorEl = container.querySelector('#scan-error');
 
-    // Кешируем детали поставки, чтобы не дёргать сервер на каждом скане
+    // Кешируем детали поставки: сначала из параметров/кеша, потом при необходимости с сервера
     let detail = null;
+    if (params._prefetchedItems) {
+      detail = { items: params._prefetchedItems };
+    } else {
+      const cached = Storage.getDetailCache(params.supplyId);
+      if (cached) detail = cached;
+    }
     async function getDetail() {
-      if (!detail) detail = await Api.getSupplyDetail(params.supplyId);
+      if (!detail) {
+        detail = await Api.getSupplyDetail(params.supplyId);
+        Storage.setDetailCache(params.supplyId, detail);
+      }
       return detail;
     }
 
@@ -556,7 +614,7 @@ Screens.pack_steps = {
           <div class="step-card__big">${esc(params.item.unit_barcode)}</div>
           <p class="step-card__hint">Подтверди, что взял нужную, сканированием:</p>
           <div class="scan-input-wrap mt-16">
-            <input id="unit-barcode-input" class="scan-input" type="text" autocomplete="off" placeholder="Отсканируй ШК юнита">
+            <input id="unit-barcode-input" class="scan-input" type="text" autocomplete="off" placeholder="Отсканируй ШК юнита" inputmode="none" data-scanner-field="true">
           </div>
           <div id="barcode-error" class="alert alert--error" style="display:none;"></div>
         </div>
@@ -571,7 +629,7 @@ Screens.pack_steps = {
           <span class="step-card__num">Шаг 3 из 4</span>
           <h3 class="step-card__title">Введи срок годности товара (Годен До):</h3>
           <div class="scan-input-wrap">
-            <input id="expiry-input" class="scan-input" type="text" autocomplete="off" placeholder="ДД.ММ.ГГГГ" inputmode="numeric">
+            <input id="expiry-input" class="scan-input" type="text" autocomplete="off" placeholder="ДД.ММ.ГГГГ" inputmode="none" data-scanner-field="true" data-tap-inputmode="numeric">
           </div>
           <p class="step-card__hint">Дата указана на упаковке товара.</p>
         </div>
@@ -808,7 +866,7 @@ Screens.ru_pack = {
         <div class="step-card">
           <div class="step-card__title">Шаг 1. Отсканируй код маркировки с товара</div>
           <div class="scan-input-wrap">
-            <input id="dm-scan-input" class="scan-input" type="text" autocomplete="off" placeholder="DataMatrix код">
+            <input id="dm-scan-input" class="scan-input" type="text" autocomplete="off" placeholder="DataMatrix код" inputmode="none" data-scanner-field="true">
           </div>
           <div id="scan-error" class="alert alert--error" style="display:none;"></div>
           <div id="scan-success" class="alert alert--success" style="display:none;"></div>
@@ -1035,11 +1093,11 @@ Screens.completePack = {
         <h3 class="modal__title">Завершение упаковки</h3>
         <div class="modal__body">
           <p>Отсканируй код груза коробки:</p>
-          <input id="box-scan" class="modal__input" type="text" autocomplete="off" placeholder="22...">
+          <input id="box-scan" class="modal__input" type="text" autocomplete="off" placeholder="22..." inputmode="none" data-scanner-field="true">
           <div id="box-error" class="alert alert--error" style="display:none;"></div>
 
           <p class="mt-16">${isRU ? 'Сколько юнитов уложил в эту коробку?' : 'Сколько юнитов уложил?'}</p>
-          <input id="count-input" class="modal__input" type="number" min="1" value="${isRU ? scannedCount : 1}" inputmode="numeric">
+          <input id="count-input" class="modal__input" type="number" min="1" value="${isRU ? scannedCount : 1}" inputmode="none" data-scanner-field="true" data-tap-inputmode="numeric">
 
           ${state.expiry ? `<p class="mt-16 text-center">Срок годности: <strong>${esc(state.expiry)}</strong></p>` : ''}
           ${isRU && scannedCount ? `<p class="text-center">Отсканировано кодов: <strong>${scannedCount}</strong></p>` : ''}
@@ -1134,6 +1192,9 @@ Screens.completePack = {
         });
 
         cleanup();
+        // Инвалидируем кеш деталей и списка поставок, чтобы прогресс обновился
+        Storage.clearDetailCache(params.supplyId);
+        Storage.clearSuppliesCache();
         App.toast('Упаковка сохранена', 'success');
         onComplete();
       } catch (e) {
@@ -1163,7 +1224,7 @@ Screens.reprint = {
         <h3 class="modal__title">Перепечатать код</h3>
         <div class="modal__body">
           <p>Введи порядковый номер испорченной этикетки:</p>
-          <input id="reprint-input" class="modal__input" type="number" min="1" inputmode="numeric" placeholder="Например: 5">
+          <input id="reprint-input" class="modal__input" type="number" min="1" inputmode="none" data-scanner-field="true" data-tap-inputmode="numeric" placeholder="Например: 5">
           <p class="step-card__hint">Будет напечатано 2 копии этого кода.</p>
           <div id="reprint-error" class="alert alert--error" style="display:none;"></div>
         </div>
@@ -1323,7 +1384,7 @@ Screens.adminOverride = {
         <div class="modal__body">
           <p>${esc(reason)}</p>
           <p class="mt-16">Отсканируй бейдж администратора:</p>
-          <input id="admin-badge-input" class="modal__input" type="text" autocomplete="off" placeholder="Бейдж (20...)">
+          <input id="admin-badge-input" class="modal__input" type="text" autocomplete="off" placeholder="Бейдж (20...)" inputmode="none" data-scanner-field="true">
           <div id="admin-error" class="alert alert--error" style="display:none;"></div>
         </div>
         <div class="btn-row">
@@ -1450,18 +1511,13 @@ Screens.admin = {
 
         <div class="admin-card">
           <div class="admin-card__title">➕ Новая поставка</div>
-          <input id="new-supply-name" class="admin-input" type="text" placeholder="Название поставки">
+          <input id="new-supply-name" class="admin-input" type="text" placeholder="Название поставки" inputmode="none" data-scanner-field="true" data-tap-inputmode="text">
           <p style="font-size:12px; color:#666; margin:0 0 6px;">
-            Вставь состав (TSV из Excel). Колонки (8 шт., tab-разделители):<br>
-            <code style="font-size:11px; background:#f5f5f5; padding:2px 6px; border-radius:3px;">Наименование | ШК Юнит | Артикул | Юнитов | Штрихкод | SKU | Страна | ВПП</code><br>
-            <strong>Страна «РОССИЯ»</strong> = поштучное сканирование, иначе — печать пула.<br>
-            <strong>Наборы:</strong> родитель с ШК Юнит, затем строки без ШК Юнит (элементы) привяжутся автоматически.<br>
-            Артикул и SKU в UI не отображаются, но сохраняются в таблицу.
+            Вставь состав (TSV/CSV). Колонки: Наименование, ШК юнита, Артикул, Юнитов, Страна, Пупырка.
+            Страна «РОССИЯ» = поштучное сканирование, иначе — печать пула.
           </p>
-          <textarea id="new-supply-tsv" class="admin-textarea" placeholder="Наименование товара&#9;ШК Юнит&#9;Артикул&#9;Юнитов&#9;Штрихкод&#9;SKU&#9;Страна&#9;ВПП
-L'Oreal крем-краска Excellence Cool Creme 8.11&#9;2050690288446&#9;2060560&#9;96&#9;3600523943265&#9;96&#9;БЕЛЬГИЯ&#9;35х30
-L'Oreal Дневной крем Возраст Эксперт 45+&#9;2050689909499&#9;2123124&#9;30&#9;3600522264675&#9;30&#9;25х40&#9;01.04.2028
-L'Oreal Ночной крем Возраст Эксперт 45+&#9;&#9;&#9;3600522548072&#9;30&#9;&#9;"></textarea>
+          <textarea id="new-supply-tsv" class="admin-textarea" placeholder="Туалетная вода Dior 100мл&#9;4895165564564&#9;art-DS100&#9;72&#9;ФРАНЦИЯ&#9;25х20
+Шампунь Сиберика 400мл&#9;4607034590012&#9;art-NS400&#9;60&#9;РОССИЯ&#9;25х20" inputmode="none" data-scanner-field="true" data-tap-inputmode="text"></textarea>
           <button class="btn btn--primary btn--block" id="add-supply-btn">Добавить поставку</button>
           <div id="add-result"></div>
         </div>
