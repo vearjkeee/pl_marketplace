@@ -4,7 +4,7 @@
  * Запросы к GAS всегда идут в сеть (должны быть свежие).
  */
 
-const CACHE_NAME = 'pl-warehouse-v1';
+const CACHE_NAME = 'pl-warehouse-v9';
 const ASSETS = [
   './',
   './index.html',
