@@ -110,13 +110,16 @@ const Mock = {
   async login(badge) {
     await this._delay();
     const st = this._state();
-    const emp = st.employees.find(e => e.badge_id === badge);
+    // Бейджи сканируются с невидимым префиксом "20" (WMS).
+    // В таблице могут храниться КАК с префиксом (20SIDOROV), ТАК и без (BARANCHIK).
+    const cleanBadge = String(badge || '').trim();
+    const lookupWith = cleanBadge.startsWith('20') ? cleanBadge : ('20' + cleanBadge);
+    const lookupWithout = cleanBadge.startsWith('20') ? cleanBadge.substring(2) : cleanBadge;
+    const emp = st.employees.find(e =>
+      e.badge_id === lookupWith || e.badge_id === lookupWithout || e.badge_id === cleanBadge
+    );
     if (!emp) {
-      // В демо: любой бейдж с префиксом 20 логинится как демо-пользователь
-      if (badge && badge.startsWith('20')) {
-        return { badge: badge, fio: 'Демо-сотрудник', role: 'packer', demo: true };
-      }
-      throw new Error('Бейдж не найден. В демо используй: 20SIDOROV, 20IVANOV, 20PETROV или 20ADMIN');
+      throw new Error('Бейдж не найден: ' + lookupWithout + '. Проверь лист «Сотрудники».');
     }
     return { badge: emp.badge_id, fio: emp.fio, role: emp.role, demo: true };
   },

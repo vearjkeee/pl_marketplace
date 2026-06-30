@@ -14,10 +14,10 @@
 const CONFIG = {
   // URL вашего развёрнутого Google Apps Script Web App.
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyLL1X28X9RuZIQ5DjQLYxZyzV1jNSbBR0sL1fmeklhMaKR6QPYnctLX4Rz6gSry1Iibg/exec',
-  REQUEST_TIMEOUT_MS: 10000,   // 10с (было 20с) — GAS обычно отвечает за 1-3с
-  RETRY_COUNT: 1,              // 1 ретрай (было 2) — итого 2 попытки
-  RETRY_DELAY_MS: 300,         // 300мс между попытками (было 800мс)
-  CACHE_TTL_MS: 30000          // 30с кеш GET-запросов (supplies, supply_detail)
+  REQUEST_TIMEOUT_MS: 10000,
+  RETRY_COUNT: 1,
+  RETRY_DELAY_MS: 300,
+  CACHE_TTL_MS: 30000
 };
 
 const Api = {

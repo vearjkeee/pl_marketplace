@@ -62,8 +62,18 @@ Screens.login = {
     Scanner.bind(input, async (badge) => {
       errorEl.style.display = 'none';
       input.classList.remove('scan-input--error');
+
+      // Показываем индикатор загрузки (чтобы было видно что идёт запрос)
+      const loadingHint = document.createElement('div');
+      loadingHint.className = 'alert alert--info';
+      loadingHint.style.maxWidth = '320px';
+      loadingHint.style.margin = '12px auto';
+      loadingHint.innerHTML = '<div class="loader" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px;"></div>Проверка бейджа...';
+      input.parentNode.appendChild(loadingHint);
+
       try {
         const resp = await Api.login(badge);
+        if (loadingHint.parentNode) loadingHint.parentNode.removeChild(loadingHint);
         if (resp && resp.fio) {
           Storage.setSession({
             badge: resp.badge,
@@ -81,6 +91,7 @@ Screens.login = {
           throw new Error('Неверный ответ сервера');
         }
       } catch (e) {
+        if (loadingHint.parentNode) loadingHint.parentNode.removeChild(loadingHint);
         errorEl.textContent = 'Ошибка: ' + e.message;
         errorEl.style.display = 'block';
         input.classList.add('scan-input--error');

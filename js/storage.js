@@ -50,8 +50,19 @@ const Storage = {
 
   // --- Сессия ---
 
+  // --- Сессия (с авто-продлением на 12 часов) ---
+
+  SESSION_TTL_MS: 12 * 60 * 60 * 1000,  // 12 часов
+
   getSession() {
-    return this.get(this.KEYS.SESSION, null);
+    const s = this.get(this.KEYS.SESSION, null);
+    if (!s) return null;
+    // Проверяем TTL: если сессия старая — очищаем
+    if (s.loginTime && (Date.now() - s.loginTime > this.SESSION_TTL_MS)) {
+      this.clearSession();
+      return null;
+    }
+    return s;
   },
 
   setSession(session) {
